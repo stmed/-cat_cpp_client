@@ -84,8 +84,8 @@ static int CLogUpdateSaveFile() {
             return -1;
         } else {
             char tmp[256];
-            snprintf(tmp, 255, "Writing log to file %s.\n", logName);
-            _CLog_debugInfo(tmp);
+            snprintf(tmp, 255, "Writing log to file %s.", logName);
+            INNER_LOG(CLOG_DEBUG, tmp);
             return 1;
         }
     }
@@ -100,7 +100,7 @@ static void CLogInit() {
         memset(g_innerLog, 0, sizeof(CLogInner));
         g_log_nowDay = GetTime64() / 1000 / 3600;
         if (CLogUpdateSaveFile() > 0) {
-            CLogLogWithLocation(CLOG_INFO, "Cat log module has been successfully initialized.", __FILE__, __LINE__, __FUNCTION__);
+            INNER_LOG(CLOG_DEBUG, "Cat log module has been successfully initialized.", __FILE__, __LINE__, __FUNCTION__);
         }
     }
     CATCS_LEAVE(g_logCritSection);
@@ -137,11 +137,11 @@ void CLogLogWithLocation(uint16_t type, const char* format, const char* file, in
     int maxlen = 1023;
     char *printBuf = szBuffer;
 
-    if (g_log_debug) {
-        char location[256];
-        snprintf(location, 255, "File: \"%s\", Line %d, in %s\n", file, line, function);
-        printf(location);
-    }
+    // if (g_log_debug) {
+    //     char location[256];
+    //     snprintf(location, 255, "File: \"%s\", Line %d, in %s\n", file, line, function);
+    //     printf(location);
+    // }
 
     va_list args;
     va_start(args, function);

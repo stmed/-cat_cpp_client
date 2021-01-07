@@ -57,14 +57,14 @@ void catMessageManagerFlush(CatMessageTree *tree) {
         sendRootMessage(tree);
     } else {
         deleteCatMessageTree(tree);
-        ++g_cat_messageManager.throttleTimes;
-        if (g_cat_messageManager.throttleTimes == 1 || g_cat_messageManager.throttleTimes % 1000000 == 0) {
+        g_cat_messageManager.throttleTimes = (++g_cat_messageManager.throttleTimes) % 100000000;
+        if (g_cat_messageManager.throttleTimes == 1 || g_cat_messageManager.throttleTimes % 10 == 0) {
             INNER_LOG(CLOG_WARNING, "Cat Message is throttled! Times: %d", g_cat_messageManager.throttleTimes);
         }
     }
 }
 
-void initMessageManager(const char *domain, const char *hostName) {
+int initMessageManager(const char *domain, const char *hostName) {
     g_cat_messageManager.domain = catsdsnew(domain);
     catChecktPtr(g_cat_messageManager.domain);
 
@@ -73,25 +73,35 @@ void initMessageManager(const char *domain, const char *hostName) {
 
     g_cat_messageManager.ip = catsdsnewEmpty(64);
     catChecktPtr(g_cat_messageManager.ip);
-    getLocalHostIp(g_cat_messageManager.ip);
+
+    if (getLocalHostIp(g_cat_messageManager.ip) < 0) {
+        INNER_LOG(CLOG_ERROR, "get local host ip failed.");
+        return -1;
+    };
 
     // Determine if ip has been got successfully.
     if (g_cat_messageManager.ip[0] == '\0') {
-        INNER_LOG(CLOG_WARNING, "Cannot get self ip address, using default ip: %s", g_config.defaultIp);
+        INNER_LOG(CLOG_ERROR, "Cannot get self ip address.");
         g_cat_messageManager.ip = catsdscpy(g_cat_messageManager.ip, g_config.defaultIp);
+        return -1;
     }
     INNER_LOG(CLOG_INFO, "Current ip: %s", g_cat_messageManager.ip);
 
     g_cat_messageManager.ipHex = catsdsnewEmpty(64);
     catChecktPtr(g_cat_messageManager.ipHex);
-    getLocalHostIpHex(g_cat_messageManager.ipHex);
+    if (getLocalHostIpHex(g_cat_messageManager.ipHex) < 0) {
+        INNER_LOG(CLOG_ERROR, "get local host ip hex failed, ipHex:%s", g_cat_messageManager.ipHex);
+        return -1;
+    }
 
     // Determine if ipX has been got successfully.
     if (g_cat_messageManager.ipHex[0] == '\0') {
-        INNER_LOG(CLOG_WARNING, "Cannot get self ip address, using default ip hex: %s", g_config.defaultIpHex);
+        INNER_LOG(CLOG_ERROR, "Cannot get self ip address.");
         g_cat_messageManager.ipHex = catsdscpy(g_cat_messageManager.ipHex, g_config.defaultIpHex);
+        return -1;
     }
     INNER_LOG(CLOG_INFO, "Current ip hex: %s", g_cat_messageManager.ipHex);
+    return 0;
 }
 
 void catMessageManagerDestroy() {

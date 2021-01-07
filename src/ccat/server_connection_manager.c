@@ -45,10 +45,11 @@ extern unsigned short g_cat_send_port;
 extern int g_cat_send_fd;
 extern int g_cat_send_failedFlag;
 
+// 成功返回0 ，失败返回-1
 static int tryConnBestServer() {
     int oldFd, newFd;
     if (g_server_activeId == 0) {
-        return 1;
+        return 0;
     }
     int ipValidNum = g_server_activeId;
     if (ipValidNum < 0) {
@@ -67,12 +68,12 @@ static int tryConnBestServer() {
             retVal = catAeWait(newFd, AE_WRITABLE | AE_ERROR | AE_HUP, 200);
 #endif
             if (retVal > 0 && !(retVal & AE_ERROR) && (retVal & AE_WRITABLE)) {
-                INNER_LOG(CLOG_INFO, "Connect success.");
                 g_server_activeId = i;
                 strcpy(g_cat_send_ip, g_server_ips[i]);
                 g_cat_send_port = g_server_ports[i];
                 oldFd = g_cat_send_fd;
                 g_cat_send_fd = newFd;
+                INNER_LOG(CLOG_INFO, "Connect CAT success, g_send_ip:%s, g_send_port:%d", g_cat_send_ip, g_cat_send_port);
 
                 struct linger linger;
                 linger.l_onoff = 1;
@@ -82,7 +83,7 @@ static int tryConnBestServer() {
                 if (oldFd > 0) {
                     catAnetClose(oldFd);
                 }
-                return 1;
+                return 0;
             } else {
                 INNER_LOG(CLOG_WARNING, "Cannot connect to server %s:%d.",
                           g_server_ips[i], (int) g_server_ports[i]);
@@ -91,8 +92,8 @@ static int tryConnBestServer() {
         }
     }
     if (g_server_activeId >= 0)
-        return 1;
-    return 0;
+        return 0;
+    return -1;
 }
 
 static void updateCatActiveConnIndex() {
@@ -128,8 +129,9 @@ static int checkIpValid(sds ip, size_t ipLen) {
     return 1;
 }
 
-static int resolveIpPortStr(sds ipPortStr, sds *ip, unsigned short *port) {
+int resolveIpPortStr(sds ipPortStr, sds *ip, unsigned short *port) {
     size_t i = 0;
+    int is_valid = 1;
 
     for (; i < catsdslen(ipPortStr); ++i) {
         if (ipPortStr[i] == ':') {
@@ -137,19 +139,21 @@ static int resolveIpPortStr(sds ipPortStr, sds *ip, unsigned short *port) {
                 *ip = catsdsnewEmpty(16);
             }
             if (!checkIpValid(ipPortStr, i)) {
-                return 0;
+                INNER_LOG(CLOG_DEBUG, "invalid ip: %s", ipPortStr);
+                is_valid = 0;
             }
             *ip = catsdscpylen(*ip, ipPortStr, i);
             long lPort = atol(ipPortStr + i + 1);
             if (lPort <= 0 || lPort > 65536) {
-                *port = 2280;
+                INNER_LOG(CLOG_DEBUG, "invalid port: %ld", lPort);
+                is_valid = 0;
             } else {
                 *port = (unsigned short) lPort;
             }
-            return 1;
+            return is_valid;
         }
     }
-    return 0;
+    return is_valid;
 }
 
 int resolveServerIps(char *routerIps) {
@@ -192,14 +196,16 @@ static sds inline _buildHttpHeader(
     }
 }
 
+// 1: 成功， 0: 失败
 static int getRouterFromServer(char *hostName, unsigned int port, char *domain) {
+    INNER_LOG(CLOG_DEBUG, "enter get router from server:%s ", hostName);
     if (g_server_requestBuf == NULL) {
         g_server_requestBuf = catsdsnewEmpty(1024);
         catChecktPtr(g_server_requestBuf);
     }
 
     char destIP[128];
-    if (catAnetResolveIP(NULL, hostName, destIP, 128) == ANET_ERR) {
+    if (catAnetResolve(NULL, hostName, destIP, 128) == ANET_ERR) {
         return 0;
     }
     INNER_LOG(CLOG_INFO, "Start connect to router server %s : %hd.", destIP, port);
@@ -275,24 +281,24 @@ static int getRouterFromServer(char *hostName, unsigned int port, char *domain) 
 }
 
 int recoverCatServerConn() {
+    INNER_LOG(CLOG_DEBUG, "try recover...");
+
     CATCS_ENTER(g_server_lock);
     catAnetClose(g_cat_send_fd);
     g_cat_send_fd = -1;
     g_server_activeId = -1;
-    if (!tryConnBestServer()) {
-        INNER_LOG(CLOG_WARNING, "Failed to reconnect server, trying updating routing table.");
-        if (!updateCatServerConn()) {
-            INNER_LOG(CLOG_ERROR, "Retry failed, server is unavailable.");
-            CATCS_LEAVE(g_server_lock);
-            return 0;
-        }
+    if (updateCatServerConn() < 0) {
+        INNER_LOG(CLOG_ERROR, "Retry failed, server is unavailable.");
+        CATCS_LEAVE(g_server_lock);
+        return 0;
     }
+
     g_cat_send_failedFlag = 1;
     CATCS_LEAVE(g_server_lock);
     return 1;
 }
 
-void initCatServerConnManager() {
+int initCatServerConnManager() {
     g_server_lock = CATCreateCriticalSection();
 
     // 先从配置读初始的服务器配置
@@ -307,7 +313,12 @@ void initCatServerConnManager() {
             ++validCount;
         }
     }
+    if (validCount <= 0) {
+        INNER_LOG(CLOG_ERROR, "no valid server found.");
+        return -1;
+    }
     g_server_count = validCount;
+    return 0;
 }
 
 void clearCatServerConnManager() {
@@ -374,36 +385,32 @@ int checkCatActiveConn() {
 }
 
 int updateCatServerConn() {
-    static int isFirstConnect = 1;
-
     CATCS_ENTER(g_server_lock);
-    int rst;
-
-    if (isFirstConnect) {
-        rst = getRouterFromServer(g_config.serverHost, g_config.serverPort, g_cat_messageManager.domain);
+    const int rst = getRouterFromServer(g_config.serverHost, g_config.serverPort, g_cat_messageManager.domain);
+    if (rst == 1) {
+        INNER_LOG(CLOG_DEBUG, "Get router from server successfully.");
     } else {
-        rst = getRouterFromServer(g_cat_send_ip, g_config.serverPort, g_cat_messageManager.domain);
+        INNER_LOG(CLOG_ERROR, "Get router from server failed.");
+        CATCS_LEAVE(g_server_lock);
+        return -1;
     }
-    INNER_LOG(CLOG_DEBUG, "Get router from server successfully");
 
-    if (isFirstConnect || rst > 0) {
-        isFirstConnect = 0;
-
+    if (rst > 0) {
         updateCatActiveConnIndex();
 
         INNER_LOG(CLOG_DEBUG, "Trying connecting to the best server");
-        if (tryConnBestServer() == 0) {
+        if (tryConnBestServer() != 0) {
             g_cat_send_failedFlag = 1;
             CATCS_LEAVE(g_server_lock);
-            return 0;
+            return -1;
         } else {
             g_cat_send_failedFlag = 0;
             CATCS_LEAVE(g_server_lock);
-            return 1;
+            return 0;
         }
     }
 
     g_cat_send_failedFlag = 1;
     CATCS_LEAVE(g_server_lock);
-    return 0;
+    return -1;
 }

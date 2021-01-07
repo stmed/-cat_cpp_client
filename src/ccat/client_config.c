@@ -94,8 +94,7 @@ int parseCatClientConfig(ezxml_t f1) {
 int loadCatClientConfig(const char *filename) {
     ezxml_t config = getCatClientConfig(filename);
     if (NULL == config) {
-        INNER_LOG(CLOG_WARNING, "File %s not exists.", filename);
-        INNER_LOG(CLOG_WARNING, "client.xml is required to initialize cat client!");
+        INNER_LOG(CLOG_ERROR, "File %s not exists, which is required to init cat client.", filename);
         return -1;
     }
 
@@ -106,14 +105,14 @@ int loadCatClientConfig(const char *filename) {
     return 0;
 }
 
-void initCatClientConfig(CatClientConfig *config) {
+int initCatClientConfig(CatClientConfig *config) {
     memset(&g_config, 0, sizeof(g_config));
 
     g_log_debug = config->enableDebugLog;
-    _CLog_debugInfo("encoder: %d\n", config->encoderType);
-    _CLog_debugInfo("sampling: %d\n", config->enableSampling);
-    _CLog_debugInfo("multiprocessing: %d\n", config->enableMultiprocessing);
-    _CLog_debugInfo("heartbeat: %d\n", config->enableHeartbeat);
+    INNER_LOG(CLOG_DEBUG, "encoder: %d", config->encoderType);
+    INNER_LOG(CLOG_DEBUG, "sampling: %d", config->enableSampling);
+    INNER_LOG(CLOG_DEBUG, "multiprocessing: %d", config->enableMultiprocessing);
+    INNER_LOG(CLOG_DEBUG, "heartbeat: %d", config->enableHeartbeat);
 
     g_config.appkey = DEFAULT_APPKEY;
     g_config.selfHost = catsdsnewEmpty(128);
@@ -123,22 +122,20 @@ void initCatClientConfig(CatClientConfig *config) {
 
     if (catAnetGetHost(NULL, g_config.selfHost, 128) == ANET_ERR) {
         g_config.selfHost = catsdscpy(g_config.selfHost, "CUnknownHost");
+        INNER_LOG(CLOG_ERROR, "get self host failed.");
+        return -1;
     }
     INNER_LOG(CLOG_INFO, "Current hostname: %s", g_config.selfHost);
 
     g_config.serverHost = catsdsnew(DEFAULT_IP);
-    g_config.serverPort = 8080;
-    g_config.serverNum = 3;
+    g_config.serverPort = -1;
+    g_config.serverNum = 1;
     g_config.serverAddresses = (sds *) malloc(g_config.serverNum * sizeof(sds));
 
     int i = 0;
     for (i = 0; i < g_config.serverNum; ++i) {
         g_config.serverAddresses[i] = catsdsnew("");
     }
-
-    g_config.serverAddresses[0] = catsdscpy(g_config.serverAddresses[0], "127.0.0.1:2280");
-    g_config.serverAddresses[1] = catsdscpy(g_config.serverAddresses[1], "127.0.0.1:2280");
-    g_config.serverAddresses[2] = catsdscpy(g_config.serverAddresses[2], "127.0.0.1:2280");
 
     g_config.messageEnableFlag = 1;
     g_config.messageQueueSize = 10000;
@@ -174,6 +171,8 @@ void initCatClientConfig(CatClientConfig *config) {
         g_log_file_with_time = g_config.logFileWithTime;
         g_log_debug = g_config.logDebugFlag;
     }
+
+    return 0;
 }
 
 void clearCatClientConfig() {

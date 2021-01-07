@@ -19,14 +19,20 @@
 #ifndef CAT_CLIENT_C_SERVER_CONNECTION_MANAGER_H
 #define CAT_CLIENT_C_SERVER_CONNECTION_MANAGER_H
 
+#include "lib/cat_sds.h"
+
+//0 失败， 1 成功
 int recoverCatServerConn();
 
 int checkCatActiveConn();
 
 int updateCatServerConn();
 
-void initCatServerConnManager();
+int initCatServerConnManager();
 
 void clearCatServerConnManager();
+
+// 0:failed, 1:succeed.
+int resolveIpPortStr(sds ipPortStr, sds *ip, unsigned short *port);
 
 #endif //CAT_CLIENT_C_SERVER_CONNECTION_MANAGER_H

@@ -140,7 +140,9 @@ static int sendCatMessageBufferDirectly(sds sendBuf, size_t checkpoint) {
 
     if (g_cat_send_fd < 0) {
         INNER_LOG(CLOG_WARNING, "当前ip不可用: %s, 查找其他可用机器。", g_cat_send_ip);
-        recoverCatServerConn();
+        if (recoverCatServerConn() == 0) {
+            return -1;
+        }
         if (g_cat_send_fd < 0) {
             return -1;
         }
@@ -191,7 +193,9 @@ static int sendCatMessageBufferDirectly(sds sendBuf, size_t checkpoint) {
 
     if (nowSendLen < 0) {
         INNER_LOG(CLOG_WARNING, "当前ip发送失败: %s, 尝试恢复。", g_cat_send_ip);
-        recoverCatServerConn();
+        if (recoverCatServerConn() == 0) {
+            return -1;
+        }
 
         if (g_cat_send_fd < 0) {
             INNER_LOG(CLOG_ERROR, "Recover failed.");
@@ -200,7 +204,7 @@ static int sendCatMessageBufferDirectly(sds sendBuf, size_t checkpoint) {
 
     }
 
-    return 1;
+    return 0;
 }
 
 static sds catsdsrotate(sds s, size_t offset) {

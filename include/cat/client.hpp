@@ -32,13 +32,15 @@ namespace cat {
     const int ENCODER_TEXT = 0;
     const int ENCODER_BINARY  = 1;
 
-    class Config {
-    public:
-        int encoderType = ENCODER_BINARY;
+    struct Config {
+        int encoderType = ENCODER_TEXT;
         bool enableHeartbeat = true;
         bool enableSampling = true;
         bool enableMultiprocessing = false;
         bool enableDebugLog = false;
+
+        Config(): encoderType(ENCODER_TEXT), enableHeartbeat(true), enableSampling(true), 
+                    enableMultiprocessing(false), enableDebugLog(false) {}
     };
 
     class Transaction {
@@ -93,9 +95,9 @@ namespace cat {
         void AddData(const string& data);
     };
 
-    void init(const string& domain);
-
-    void init(const string& domain, const Config& config);
+    // -1: 失败, 0: 成功, 1: 已经初始化过
+    int init(const string& domain);
+    int init(const string& domain, const Config& config);
 
     string version();
 

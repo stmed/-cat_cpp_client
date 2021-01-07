@@ -37,7 +37,7 @@ void catMessageManagerEndTrans(CatTransaction *trans);
 
 void catMessageManagerFlush(CatMessageTree *tree);
 
-void initMessageManager(const char *domain, const char *hostName);
+int initMessageManager(const char *domain, const char *hostName);
 
 void catMessageManagerDestroy();
 

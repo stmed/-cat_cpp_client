@@ -21,6 +21,7 @@
 
 #include "client.h"
 
+#include "lib/cat_clog.h"
 #include "lib/cat_sds.h"
 
 #define catChecktPtr(ptr) catChecktPtrWithName((ptr), (#ptr))
@@ -63,8 +64,8 @@ typedef struct _CatClientInnerConfig {
 } CatClientInnerConfig;
 
 #define DEFAULT_APPKEY "cat"
-#define DEFAULT_IP "127.0.0.1"
-#define DEFAULT_IP_HEX "7f000001"
+#define DEFAULT_IP "UNKNOWN_IP"
+#define DEFAULT_IP_HEX "UNKNOWN_IP_HEX"
 
 #define DEFAULT_XML_FILE "/data/appdatas/cat/client.xml"
 
@@ -78,7 +79,7 @@ extern CatClientInnerConfig g_config;
 
 int loadCatClientConfig(const char *filename);
 
-void initCatClientConfig(CatClientConfig *config);
+int initCatClientConfig(CatClientConfig *config);
 
 void clearCatClientConfig();
 

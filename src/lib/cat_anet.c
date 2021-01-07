@@ -78,6 +78,7 @@
 #include "cat_anet.h"
 #include "cat_ae.h"
 #include "cat_time_util.h"
+#include "cat_clog.h"
 
 static void anetSetError(char *err, const char *fmt, ...) {
     va_list ap;
@@ -237,13 +238,14 @@ int catAnetSendTimeout(char *err, int fd, long long ms) {
  * into a validating / normalizing function. */
 int anetGenericResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len,
                        int flags, int hexFlag) {
+    INNER_LOG(CLOG_INFO, "try resolve host: %s", host);
     char hostname[255];
     if (host == NULL) {
         if (gethostname(hostname, sizeof(hostname)) == 0) {
             host = hostname;
-            printf("HostName : %s \n", hostname);
+            INNER_LOG(CLOG_INFO, "HostName : %s ", hostname);
         } else {
-            printf("GetHostName Error \n");
+            INNER_LOG(CLOG_ERROR, "GetHostName Error.");
             return ANET_ERR;
         }
     }
@@ -295,7 +297,7 @@ int anetGenericResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len,
 
     if ((rv = getaddrinfo(host, NULL, &hints, &info)) != 0) {
         anetSetError(err, "%s", gai_strerror(rv));
-        printf("%s\n", gai_strerror(rv));
+        INNER_LOG(CLOG_ERROR, "%s", gai_strerror(rv));
         return ANET_ERR;
     }
     if (info->ai_family == AF_INET) {
@@ -322,6 +324,7 @@ int anetGenericResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len,
     freeaddrinfo(info);
 
 #endif
+    INNER_LOG(CLOG_INFO, "resolve host succeed. host:%s, ipbuf:%s", host, ipbuf);
     return ANET_OK;
 }
 

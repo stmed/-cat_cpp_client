@@ -66,7 +66,7 @@ void resetCatContext() {
     ctx->reset(ctx);
 }
 
-static void catClientInitInner() {
+static int catClientInitInner() {
     g_cat_init = 1;
 
     initMessageIdHelper();
@@ -80,18 +80,19 @@ static void catClientInitInner() {
     // TODO Avoid using it.
     g_server_activeId = -1;
 
-    if (!updateCatServerConn()) {
+    if (updateCatServerConn() < 0) {
         g_cat_init = 0;
         g_cat_enabled = 0;
         INNER_LOG(CLOG_ERROR,
                   "Failed to initialize cat: Error occurred while getting router config from remote server.");
-        return;
+        return -1;
     }
     g_cat_enabled = 1;
 
     startCatAggregatorThread();
     startCatMonitorThread();
     startCatSenderThread();
+    return 0;
 }
 
 static void catClientInitInnerForked() {
@@ -113,33 +114,46 @@ int catClientInit(const char* appkey) {
 
 int catClientInitWithConfig(const char *appkey, CatClientConfig* config) {
     if (g_cat_init) {
-        return 0;
+        INNER_LOG(CLOG_INFO, "skip init with config: already initialized.");
+        return 1;
     }
     g_cat_init = 1;
 
-    signal(SIGPIPE, SIG_IGN);
+    //signal(SIGPIPE, SIG_IGN);
 
-    initCatClientConfig(config);
+    if (initCatClientConfig(config) < 0) {
+        INNER_LOG(CLOG_ERROR, "init cat client config failed.");
+        return -1;
+    }
 
     if (loadCatClientConfig(DEFAULT_XML_FILE) < 0) {
         g_cat_init = 0;
         g_cat_enabled = 0;
         INNER_LOG(CLOG_ERROR, "Failed to initialize cat: Error occurred while loading client config.");
-        return 0;
+        return -1;
     }
     g_config.appkey = catsdsnew(appkey);
 
-    initMessageManager(appkey, g_config.selfHost);
+    if (initMessageManager(appkey, g_config.selfHost) < 0) {
+        INNER_LOG(CLOG_ERROR, "Failed to init MessageManager.");
+        return -1;
+    }
 
-    initCatServerConnManager();
+    if (initCatServerConnManager() < 0) {
+        INNER_LOG(CLOG_ERROR, "Failed to init cat server conn manager.");
+        return -1;
+    }
 
-    catClientInitInner();
+    if (catClientInitInner() < 0) {
+        INNER_LOG(CLOG_ERROR, "cat Client Init Inner failed.");
+        return -1;
+    }
 
     pthread_atfork(NULL, NULL, catClientInitInnerForked);
 
     INNER_LOG(CLOG_INFO, "Cat has been initialized with appkey: %s", appkey);
 
-    return 1;
+    return 0;
 }
 
 int catClientDestroy() {

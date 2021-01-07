@@ -1,7 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <chrono>
-
+#include <thread>
 #include <cat/client.hpp>
 
 using namespace std;
@@ -16,7 +16,6 @@ void transaction() {
     t.AddData("bar", "2");
     t.AddData("foo is a bar");
     t.SetDurationStart(GetTime64() - 1000);
-    t.SetTimestamp(GetTime64() - 1000);
     t.SetDurationInMillis(150);
     t.SetStatus(cat::FAIL);
     t.Complete();
@@ -42,18 +41,17 @@ void metric() {
 }
 
 int main() {
-    cat::Config c = cat::Config();
-    c.enableDebugLog = true;
-    c.encoderType = cat::ENCODER_TEXT;
-    cat::init("cppcat2", c);
+    cat::Config config;
+    config.enableDebugLog = true;
+    cat::init("cppcat2", config);
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 200; i++) {
         transaction();
         event();
         metric();
         usleep(1000000);
         std::cout << "cat: " << i << std::endl;
     }
-    usleep(1000000);
     cat::destroy();
+    return 0;
 }

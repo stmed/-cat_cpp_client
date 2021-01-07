@@ -55,20 +55,20 @@ static PTHREAD catMonitorFun(PVOID para) {
             saveMark();
         }
 
-        // check router list every 3m.
-        if (runCount % 180 == 0) {
+        // check router list every 10s.
+        if (runCount % 10 == 0) {
             updateCatServerConn();
         }
 
         if (runCount % 60 == 1 && g_config.enableHeartbeat) {
             // Report ccat version.
-            logEvent("Cat_C_Client_Version", CCAT_VERSION, CAT_SUCCESS, NULL);
+            //logEvent("Cat_C_Client_Version", CCAT_VERSION, CAT_SUCCESS, NULL);
 
             // Report vm / runtime version. (For other programming language which using ccat mixin to report heartbeat)
             if (strcmp(g_client_info.language, "C") != 0) {
                 sds name = catsdsnew("");
                 name = catsdscatfmt(name, "Cat_%s_Client_Version", g_client_info.language);
-                logEvent(name, g_client_info.language_version, CAT_SUCCESS, NULL);
+                //logEvent(name, g_client_info.language_version, CAT_SUCCESS, NULL);
                 catsdsfree(name);
             }
 

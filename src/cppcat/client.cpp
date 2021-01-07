@@ -10,18 +10,20 @@
 using namespace std;
 
 namespace cat {
-    void init(const string& domain) {
-        catClientInit(domain.c_str());
+    // -1: 失败, 0: 成功, 1: 已经初始化过
+    int init(const string& domain) {
+        return catClientInit(domain.c_str());
     }
 
-    void init(const string& domain, const Config& config) {
+    // -1: 失败, 0: 成功, 1: 已经初始化过
+    int init(const string& domain, const Config& config) {
         CatClientConfig conf = DEFAULT_CCAT_CONFIG;
         conf.encoderType = config.encoderType;
         conf.enableSampling = config.enableSampling;
         conf.enableMultiprocessing = config.enableMultiprocessing;
         conf.enableHeartbeat = config.enableHeartbeat;
         conf.enableDebugLog = config.enableDebugLog;
-        catClientInitWithConfig(domain.c_str(), &conf);
+        return catClientInitWithConfig(domain.c_str(), &conf);
     }
 
     string version() {

@@ -20,9 +20,11 @@
 
 #include "functions.h"
 #include "aggregator.h"
+#include "server_connection_manager.h"
 
 #include <lib/cat_json.h>
 #include <lib/cat_clog.h>
+#include <lib/cat_anet.h>
 
 #define ROUTER_CONFIG_ROUTERS "routers"
 #define ROUTER_CONFIG_SAMPLE_RATE "sample"
@@ -109,13 +111,35 @@ static int parseCatJsonRouterItem(cJSON *kvsObject) {
 
     item = cJSON_GetObjectItem(kvsObject, ROUTER_CONFIG_ROUTERS);
     if (item != NULL && (itemBuf = item->valuestring) != NULL) {
+        for (int i = 0; i < strlen(itemBuf); ++i) {
+            if (itemBuf[i] == ';') {
+                itemBuf[i] = '\0';
+                break;
+            }
+        }
+        char destIP[128];
+        char c_port[64];
+        sds ip = NULL;
+        unsigned short port;
+        if (resolveIpPortStr(itemBuf, &ip, &port) == 0) {
+            if (catAnetResolve(NULL, ip, destIP, 128) == ANET_ERR) {
+                INNER_LOG(CLOG_ERROR, "catAnetResolve failed. ip:%s", ip);
+                return 0;
+            }
+            snprintf(c_port, 64, "%d", port);
+            strcat(destIP, ":");
+            strcat(destIP, c_port);
+            itemBuf = destIP;
+        }
+        INNER_LOG(CLOG_INFO, "ip port after resolve: %s", itemBuf);
         if (resolveServerIps(itemBuf) > 0) {
             rst += 1;
         } else {
             INNER_LOG(CLOG_WARNING, "CatRouter Json catAtoI Error, key [routers].");
         }
     } else {
-        INNER_LOG(CLOG_WARNING, "CatRouter Json GetObjectItem Error, no key [routers].");
+        INNER_LOG(CLOG_ERROR, "CatRouter Json GetObjectItem Error, no key [routers].");
+        return 0;
     }
 
     double sampleRate = 1.0;
